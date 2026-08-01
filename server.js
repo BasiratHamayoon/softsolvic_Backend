@@ -10,12 +10,27 @@ const errorMiddleware = require("./middleware/errorMiddleware");
 
 dotenv.config();
 
-connectDB();
-
 const app = express();
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+let isConnected = false;
+
+const connectToDatabase = async () => {
+  if (isConnected) return;
+  try {
+    await connectDB();
+    isConnected = true;
+  } catch (error) {
+    console.error("Database connection failed:", error);
+  }
+};
+
+app.use(async (req, res, next) => {
+  await connectToDatabase();
+  next();
+});
+
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
 const allowedOrigins = [
@@ -31,11 +46,9 @@ const allowedOrigins = [
 const corsOptions = {
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
-
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-
     if (process.env.NODE_ENV === "development") {
       const devPatterns = [
         /^http:\/\/localhost:\d+$/,
@@ -44,7 +57,6 @@ const corsOptions = {
       const isDevAllowed = devPatterns.some((pattern) => pattern.test(origin));
       if (isDevAllowed) return callback(null, true);
     }
-
     return callback(new Error(`CORS policy: Origin ${origin} is not allowed`));
   },
   credentials: true,
@@ -109,9 +121,21 @@ app.get("/api/v1/health", (req, res) => {
     success: true,
     message: "SoftSalovic API is running",
     environment: process.env.NODE_ENV,
-    allowedOrigins:
-      process.env.NODE_ENV === "development" ? allowedOrigins : undefined,
     timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "SoftSalovic Backend API",
+    version: "1.0.0",
+    endpoints: {
+      health: "/api/v1/health",
+      auth: "/api/v1/auth",
+      portfolio: "/api/v1/portfolio",
+      contact: "/api/v1/contact",
+    },
   });
 });
 
@@ -124,24 +148,14 @@ app.use(function notFoundHandler(req, res) {
 
 app.use(errorMiddleware);
 
-// ✅ ONLY run the server locally (NOT on Vercel)
 if (process.env.NODE_ENV !== "production") {
   const PORT = process.env.PORT || 5000;
-
-  const server = app.listen(PORT, () => {
-    console.log(`\n🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-    console.log(`📍 Allowed Origins: ${allowedOrigins.join(", ")}`);
-    console.log(`🏥 Health check: http://localhost:${PORT}/api/v1/health\n`);
-  });
-
-  process.on("unhandledRejection", (err) => {
-    console.error(`Unhandled Rejection: ${err.message}`);
-    server.close(() => process.exit(1));
-  });
-
-  process.on("uncaughtException", (err) => {
-    console.error(`Uncaught Exception: ${err.message}`);
-    process.exit(1);
+  connectDB().then(() => {
+    app.listen(PORT, () => {
+      console.log(`\n🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+      console.log(`📍 Allowed Origins: ${allowedOrigins.join(", ")}`);
+      console.log(`🏥 Health check: http://localhost:${PORT}/api/v1/health\n`);
+    });
   });
 }
 
