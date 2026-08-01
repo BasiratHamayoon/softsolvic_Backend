@@ -124,20 +124,25 @@ app.use(function notFoundHandler(req, res) {
 
 app.use(errorMiddleware);
 
-const PORT = process.env.PORT || 5000;
+// ✅ ONLY run the server locally (NOT on Vercel)
+if (process.env.NODE_ENV !== "production") {
+  const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, () => {
-  console.log(`\n🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-  console.log(`📍 Allowed Origins: ${allowedOrigins.join(", ")}`);
-  console.log(`🏥 Health check: http://localhost:${PORT}/api/v1/health\n`);
-});
+  const server = app.listen(PORT, () => {
+    console.log(`\n🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+    console.log(`📍 Allowed Origins: ${allowedOrigins.join(", ")}`);
+    console.log(`🏥 Health check: http://localhost:${PORT}/api/v1/health\n`);
+  });
 
-process.on("unhandledRejection", (err) => {
-  console.error(`Unhandled Rejection: ${err.message}`);
-  server.close(() => process.exit(1));
-});
+  process.on("unhandledRejection", (err) => {
+    console.error(`Unhandled Rejection: ${err.message}`);
+    server.close(() => process.exit(1));
+  });
 
-process.on("uncaughtException", (err) => {
-  console.error(`Uncaught Exception: ${err.message}`);
-  process.exit(1);
-});
+  process.on("uncaughtException", (err) => {
+    console.error(`Uncaught Exception: ${err.message}`);
+    process.exit(1);
+  });
+}
+
+module.exports = app;
