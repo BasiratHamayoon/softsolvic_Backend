@@ -29,35 +29,9 @@ app.use(async (req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-app.use(cookieParser());
-
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  process.env.ADMIN_URL,
-  process.env.USER_URL,
-  "http://localhost:3000",
-  "http://localhost:3001",
-]
-  .filter(Boolean)
-  .map((url) => url.trim());
-
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    if (process.env.NODE_ENV === "development") {
-      const devPatterns = [
-        /^http:\/\/localhost:\d+$/,
-        /^http:\/\/127\.0\.0\.1:\d+$/,
-      ];
-      const isDevAllowed = devPatterns.some((pattern) => pattern.test(origin));
-      if (isDevAllowed) return callback(null, true);
-    }
-    return callback(new Error(`CORS policy: Origin ${origin} is not allowed`));
+    callback(null, true);
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
@@ -74,9 +48,14 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(cookieParser());
+
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginOpenerPolicy: false,
   })
 );
 
@@ -86,10 +65,10 @@ if (process.env.NODE_ENV === "development") {
 
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: 500,
   message: {
     success: false,
-    message: "Too many requests from this IP, please try again after 15 minutes",
+    message: "Too many requests. Please try again later.",
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -97,10 +76,10 @@ const globalLimiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 20,
   message: {
     success: false,
-    message: "Too many login attempts, please try again after 15 minutes",
+    message: "Too many login attempts. Please try again later.",
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -130,16 +109,10 @@ app.get("/", (req, res) => {
     success: true,
     message: "SoftSalovic Backend API",
     version: "1.0.0",
-    endpoints: {
-      health: "/api/v1/health",
-      auth: "/api/v1/auth",
-      portfolio: "/api/v1/portfolio",
-      contact: "/api/v1/contact",
-    },
   });
 });
 
-app.use(function notFoundHandler(req, res) {
+app.use((req, res) => {
   res.status(404).json({
     success: false,
     message: `Route ${req.originalUrl} not found`,
@@ -152,9 +125,8 @@ if (process.env.NODE_ENV !== "production") {
   const PORT = process.env.PORT || 5000;
   connectDB().then(() => {
     app.listen(PORT, () => {
-      console.log(`\n🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-      console.log(`📍 Allowed Origins: ${allowedOrigins.join(", ")}`);
-      console.log(`🏥 Health check: http://localhost:${PORT}/api/v1/health\n`);
+      console.log(`\n🚀 Server running on port ${PORT}`);
+      console.log(`🏥 Health: http://localhost:${PORT}/api/v1/health\n`);
     });
   });
 }
